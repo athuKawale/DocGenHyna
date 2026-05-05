@@ -9,9 +9,22 @@ from tools import GRAPHIFY_TOOLS
 from IPython.display import Image, display
 import os
 
-llm = chat_model()
-
+# Load environment variables first
 load_dotenv()
+
+from langfuse.langchain import CallbackHandler
+from langfuse import Langfuse
+
+_langfuse = Langfuse()
+
+def get_langfuse_handler(session_id=None, tags=None, trace_name=None):
+    h = CallbackHandler()
+    if session_id: h.session_id = session_id
+    if tags: h.tags = tags
+    if trace_name: h.trace_name = trace_name
+    return h
+
+llm = chat_model()
 
 # Graph state
 class State(TypedDict):
@@ -69,6 +82,13 @@ def setup_state(state: State):
 
 def call_llm_1(state: State):
     """Agent node to generate API documentation"""
+    
+    # Create Langfuse handler for this agent
+    langfuse_handler = get_langfuse_handler(
+        session_id=f"analysis-{state.get('source_type', 'unknown')}",
+        tags=["api-documentation", state.get("source_type", "unknown")],
+        trace_name="generate-api-documentation"
+    )
 
     agent = create_agent(
         model=llm,
@@ -81,13 +101,23 @@ def call_llm_1(state: State):
         name="API.md"
     )
 
-    result = agent.invoke({"messages": [("user", "Please generate the API.md documentation now.")]})
+    result = agent.invoke(
+        {"messages": [("user", "Please generate the API.md documentation now.")]},
+        config={"callbacks": [langfuse_handler]}
+    )
     
     return {"analysis_docs": {"API.md": result["messages"][-1].content}}
 
 
 def call_llm_2(state: State):
     """Agent node to generate Architecture documentation"""
+    
+    # Create Langfuse handler for this agent
+    langfuse_handler = get_langfuse_handler(
+        session_id=f"analysis-{state.get('source_type', 'unknown')}",
+        tags=["architecture-documentation", state.get("source_type", "unknown")],
+        trace_name="generate-architecture-documentation"
+    )
 
     agent = create_agent(
         model=llm,
@@ -100,13 +130,23 @@ def call_llm_2(state: State):
         name="Architecture.md"
     )
 
-    result = agent.invoke({"messages": [("user", "Please generate the Architecture.md documentation now.")]})
+    result = agent.invoke(
+        {"messages": [("user", "Please generate the Architecture.md documentation now.")]},
+        config={"callbacks": [langfuse_handler]}
+    )
     
     return {"analysis_docs": {"Architecture.md": result["messages"][-1].content}}
 
 
 def call_llm_3(state: State):
     """Agent node to generate UI documentation"""
+    
+    # Create Langfuse handler for this agent
+    langfuse_handler = get_langfuse_handler(
+        session_id=f"analysis-{state.get('source_type', 'unknown')}",
+        tags=["ui-documentation", state.get("source_type", "unknown")],
+        trace_name="generate-ui-documentation"
+    )
 
     agent = create_agent(
         model=llm,
@@ -119,7 +159,10 @@ def call_llm_3(state: State):
         name="UI.md"
     )
 
-    result = agent.invoke({"messages": [("user", "Please generate the UI.md documentation now.")]})
+    result = agent.invoke(
+        {"messages": [("user", "Please generate the UI.md documentation now.")]},
+        config={"callbacks": [langfuse_handler]}
+    )
     
     return {"analysis_docs": {"UI.md": result["messages"][-1].content}}
 
@@ -161,8 +204,8 @@ builder = StateGraph(State)
 # Add nodes
 builder.add_node("setup_state", setup_state)
 builder.add_node("call_llm_1", call_llm_1)
-# builder.add_node("call_llm_2", call_llm_2)
-# builder.add_node("call_llm_3", call_llm_3)
+builder.add_node("call_llm_2", call_llm_2)
+builder.add_node("call_llm_3", call_llm_3)
 builder.add_node("aggregator", aggregator)
 
 # Add edges to connect nodes
@@ -188,3 +231,6 @@ parallel_workflow = builder.compile()
 state = parallel_workflow.invoke({"source_type": "backend", "source_path": "./source_code/"})
 print("\nFinal Graph Report Summary:")
 print(state.get("graph_report", "No report generated."))
+
+# Flush Langfuse traces before exit
+_langfuse.flush()

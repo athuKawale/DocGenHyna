@@ -6,4 +6,4 @@ load_dotenv()
 
 
 def chat_model(model_name: str = os.getenv("LLM_MODEL"), temperature: float = os.getenv("LLM_TEMPERATURE")):
-    return init_chat_model(model_name, temperature=temperature) 
+    return init_chat_model(model_name, model_provider="google_genai", temperature=temperature) 
