@@ -5,11 +5,14 @@ from langchain_core.tools import tool
 # Load from environment variable, default to the graphify-out inside source_code
 GRAPH_PATH = os.getenv("GRAPH_PATH", "./source_code/graphify-out/graph.json")
 
+# Use graphify from activated venv
+GRAPHIFY_BIN = "graphify"
+
 def run_graphify_cmd(args: list[str]) -> str:
     """Helper to run graphify CLI commands."""
     try:
         result = subprocess.run(
-            ["uv", "run", "graphify", *args],
+            [GRAPHIFY_BIN, *args],
             capture_output=True,
             text=True,
             timeout=60
